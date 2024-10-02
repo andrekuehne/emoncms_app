@@ -310,7 +310,7 @@ function bargraph_draw() {
 
     var cop_in_window = 0; 
     if (elec_kwh_in_window>0) {
-        cop_in_window = heat_kwh_in_window / elec_kwh_in_window;
+        cop_in_window = heat_kwh_in_window / elec_kwh_in_window;("#window-cop").attr
     }
     if (cop_in_window < 0) cop_in_window = 0;
     $("#window-cop").html((cop_in_window).toFixed(2));
@@ -329,17 +329,19 @@ function bargraph_draw() {
     }
 
     var tooltip_text = "";
-    tooltip_text += prefix+"Electric: " + elec_kwh_in_window.toFixed(0) + " kWh (" + (elec_kwh_in_window / days_elec).toFixed(1) + " kWh/d)\n";
-    tooltip_text += prefix+"Heat: " + heat_kwh_in_window.toFixed(0) + " kWh (" + (heat_kwh_in_window / days_heat).toFixed(1) + " kWh/d)\n";
+    tooltip_text += prefix+"Electric: " + elec_kwh_in_window.toFixed(1) + " kWh (" + (elec_kwh_in_window / days_elec).toFixed(1) + " kWh/d)\n";
+    tooltip_text += prefix+"Heat: " + heat_kwh_in_window.toFixed(1) + " kWh (" + (heat_kwh_in_window / days_heat).toFixed(1) + " kWh/d)\n";
 
     if (show_daily_immersion && (bargraph_mode=="combined" || bargraph_mode=="water")) {
-        tooltip_text += "Immersion: " + immersion_kwh_in_window.toFixed(0) + " kWh (" + (immersion_kwh_in_window / days_heat).toFixed(1) + " kWh/d)\n";
+        tooltip_text += "Immersion: " + immersion_kwh_in_window.toFixed(1) + " kWh (" + (immersion_kwh_in_window / days_heat).toFixed(1) + " kWh/d)\n";
     }
     tooltip_text += "Days: " + days_elec;
-    $("#window-cop").attr("title", tooltip_text);
+   // $("#window-cop").attr("title", tooltip_text);
 
-    $("#window-carnot-cop").html("");
-
+    //$("#window-carnot-cop").html("");
+    var copValue = $(".cop_combined").html();
+    var tooltipContent = $(".cop_combined").attr("title");
+    $("#window-cop").html("COP in window: " + copValue + " " + tooltipContent.replace(/\n/g, ' '));
 
     var options = {
         xaxis: {
