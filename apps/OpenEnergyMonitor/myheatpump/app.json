@@ -1,5 +1,5 @@
 {
-    "title"          : "My Heatpump",
+    "title"          : "My Heatpump Advanced",
     "description"    : "Explore heatpump performance: daily electricity consumption, heat output and COP. Zoom in for detailed temperature, power, heat graphs.",
-    "order"         : 7
+    "order"         : 17
 }
