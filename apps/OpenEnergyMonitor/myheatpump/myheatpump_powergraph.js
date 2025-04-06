@@ -30,7 +30,8 @@ function powergraph_load() {
         "heatpump_flowrate": { label: "Flow rate", yaxis: 3, color: 6 },
         "heatpump_heat": { label: "Heat", yaxis: 1, color: 0, lines: { show: true, fill: 0.2, lineWidth: 0.5 } },
         "heatpump_elec": { label: "Electric", yaxis: 1, color: 1, lines: { show: true, fill: 0.3, lineWidth: 0.5 } },
-        "immersion_elec": { label: "Immersion", yaxis: 1, color: 4, lines: { show: true, fill: 0.3, lineWidth: 0.5 } }
+        "immersion_elec": { label: "Immersion", yaxis: 1, color: 4, lines: { show: true, fill: 0.3, lineWidth: 0.5 } },
+        "heatpump_dhwT": { label: "DHW T", yaxis: 2, color: "#0080ff" },
     }
 
     // Compile list of feedids
@@ -610,6 +611,7 @@ function powergraph_tooltip(item) {
         dp = 3;
     }
     else if (item.series.label == "Immersion") { name = "Immersion"; unit = "W"; }
+    else if (item.series.label == "DHW T") { name = "DHW"; unit = "°C"; dp = 1; }
 
     tooltip(item.pageX, item.pageY, name + " " + itemValue.toFixed(dp) + unit + "<br>" + date + ", " + time, "#fff", "#000");
 }

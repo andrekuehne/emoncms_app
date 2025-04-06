@@ -181,7 +181,7 @@ function get_heatpump_stats($feed,$app,$start,$end,$starting_power,$timezone = '
     // --------------------------------------------------------------------------------------------------------------    
     $data = array();
     
-    $feeds = array("heatpump_elec","heatpump_flowT","heatpump_returnT","heatpump_outsideT","heatpump_roomT","heatpump_heat","heatpump_dhw","heatpump_error","heatpump_cooling","immersion_elec");
+    $feeds = array("heatpump_elec","heatpump_flowT","heatpump_returnT","heatpump_outsideT","heatpump_roomT","heatpump_heat","heatpump_dhw","heatpump_error","heatpump_cooling","immersion_elec","heatpump_dhwT");
     
     foreach ($feeds as $key) {
         $data[$key] = false;
@@ -294,6 +294,7 @@ function process_stats($data, $interval, $starting_power) {
         "roomT" => ["name" => "Room temperature", "unit" => "°C", "dp" => 2],
         //"targetT" => ["name" => "Target temperature", "unit" => "°C", "dp" => 1],
         //"flowrate" => ["name" => "Flow rate", "unit" => "", "dp" => 3]
+        "dhwT" => ["name" => "DHW temperature", "unit" => "°C", "dp" => 2],
     ];
 
     foreach ($feed_options as $key => $props) {
