@@ -76,9 +76,7 @@ function myheatpump_app_controller($route,$app,$appconfig,$apikey)
                 "heatpump_outsideT",
                 "heatpump_dhw",
                 "heatpump_ch",
-                "heatpump_targetT",
-                "heatpump_dhwT",
-                "heatpump_dhwTargetT",
+                "heatpump_targetT"
             );
 
             require_once "Modules/feed/feed_model.php";
