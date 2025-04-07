@@ -196,6 +196,7 @@ function process_stats() {
         "heatpump_targetT": { name: "Target temperature", unit: "°C", dp: 1 },
         "heatpump_flowrate": { name: "Flow rate", unit: "", dp: 3 },
         "heatpump_dhwT": { name: "DHW temperature", unit: "°C", dp: 1 },
+        "heatpump_dhwTargetT": { name: "DHW target temperature", unit: "°C", dp: 1 },
     }
 
     var keys = [];

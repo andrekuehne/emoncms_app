@@ -32,6 +32,7 @@ function powergraph_load() {
         "heatpump_elec": { label: "Electric", yaxis: 1, color: 1, lines: { show: true, fill: 0.3, lineWidth: 0.5 } },
         "immersion_elec": { label: "Immersion", yaxis: 1, color: 4, lines: { show: true, fill: 0.3, lineWidth: 0.5 } },
         "heatpump_dhwT": { label: "DHW T", yaxis: 2, color: "#0080ff" },
+        "heatpump_dhwTargetT": { label: "DHW TargetT", yaxis: 2, color:"#99cbfc" },
     }
 
     // Compile list of feedids
@@ -80,6 +81,17 @@ function powergraph_load() {
                 targetT = data["heatpump_targetT"][z][1];
             } else {
                 data["heatpump_targetT"][z][1] = targetT;
+            }
+        }
+
+        // Process heatpump_dhwTargetT data
+        // replace null values with the last known value
+        var targetT = null;
+        for (var z in data["heatpump_dhwTargetT"]) {
+            if (data["heatpump_dhwTargetT"][z][1] != null) {
+                targetT = data["heatpump_dhwTargetT"][z][1];
+            } else {
+                data["heatpump_dhwTargetT"][z][1] = targetT;
             }
         }
 
@@ -611,7 +623,8 @@ function powergraph_tooltip(item) {
         dp = 3;
     }
     else if (item.series.label == "Immersion") { name = "Immersion"; unit = "W"; }
-    else if (item.series.label == "DHW T") { name = "DHW"; unit = "°C"; dp = 1; }
+    else if (item.series.label == "DHW T") { name = "DHW T"; unit = "°C"; dp = 1; }
+    else if (item.series.label == "DHW TargetT") { name = "DHW Target T"; unit = "°C"; dp = 1; }
 
     tooltip(item.pageX, item.pageY, name + " " + itemValue.toFixed(dp) + unit + "<br>" + date + ", " + time, "#fff", "#000");
 }
