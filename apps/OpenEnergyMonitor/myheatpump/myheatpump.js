@@ -446,6 +446,11 @@ function resize() {
     placeholder.height(height - top_offset);
 
     
+    // Add resize logic for the heat loss plot if it's visible
+    if ($("#heatloss-block").is(":visible")) {
+        plotHeatLossScatter(); // <<< CALL REMAINS
+    }
+
 
     if (viewmode == "bargraph") {
         bargraph_draw();
@@ -586,6 +591,81 @@ $("#clear-daily-data").click(function () {
     });
 });
 
+
+// --- Heat Loss Panel Toggle ---
+$("#heatloss-toggle").click(function () {
+    var $contentBlock = $("#heatloss-block");
+    var $toggleText = $("#heatloss-toggle-text");
+    var $arrow = $("#heatloss-arrow");
+
+    if ($contentBlock.is(":visible")) {
+        // Hiding Logic (Stays the same)
+        $contentBlock.slideUp(); // Start hiding animation
+        $(this).css("background-color", "");
+        $toggleText.text("SHOW HEAT LOSS ANALYSIS");
+        $arrow.html("►");
+
+    } else {
+        // Showing Logic (Modified)
+        // These updates can happen immediately
+        $(this).css("background-color", "#4a6d8c");
+        $toggleText.text("HIDE HEAT LOSS ANALYSIS");
+        $arrow.html("▼");
+
+        // Start the slideDown animation AND provide a callback function
+        $contentBlock.slideDown(function() {
+            // --- This code runs AFTER slideDown completes ---
+            console.log("Heat Loss Panel: slideDown complete.");
+
+            // Now it's safe to resize and plot
+            resize(); // Ensure container dimensions are recalculated based on final state
+            plotHeatLossScatter(); // Plot into the correctly sized, visible container
+
+            // Debugging log at the correct time
+            if (typeof daily_data !== 'undefined' && daily_data.combined_elec_kwh) {
+                console.log("Heat Loss Panel (Post-Slide): Accessing daily_data...");
+            } else {
+                console.log("Heat Loss Panel (Post-Slide): daily_data not yet available...");
+            }
+            // --- End of callback ---
+        });
+    }
+});
+// --- End Heat Loss Panel Toggle ---
+
+// 1. Minimum Delta T Input Change
+$("#heatloss_min_deltaT").on('input change', function() {
+    // Only replot if the panel is actually visible
+    if ($("#heatloss-block").is(":visible")) {
+        // Basic validation if needed (e.g., ensure it's a number)
+        // let value = parseFloat($(this).val());
+        // if (!isNaN(value)) { ... }
+        plotHeatLossScatter(); // Call the plotting function (defined in heatloss.js)
+    }
+});
+
+// 2. Fixed Room Temperature Checkbox Change
+$("#heatloss_fixed_roomT_check").on('change', function() {
+    var isChecked = $(this).is(":checked");
+    // Enable/disable the associated value input based on checkbox state
+    $("#heatloss_fixed_roomT_value").prop('disabled', !isChecked);
+
+    // Replot if the panel is visible
+    if ($("#heatloss-block").is(":visible")) {
+        plotHeatLossScatter();
+    }
+});
+
+// 3. Fixed Room Temperature Value Input Change
+$("#heatloss_fixed_roomT_value").on('input change', function() {
+    // Only replot if the panel is visible AND the checkbox is checked
+    if ($("#heatloss-block").is(":visible") && $("#heatloss_fixed_roomT_check").is(":checked")) {
+         plotHeatLossScatter();
+    }
+});
+
+// --- End Heat Loss Control Event Listeners ---
+
 $("#show_dhw_temp").click(function () {
     if ($("#show_dhw_temp")[0].checked) {
         show_dhw_temp = true;
@@ -596,3 +676,4 @@ $("#show_dhw_temp").click(function () {
         powergraph_draw();
     }
 });
+
