@@ -120,7 +120,6 @@ function plotHeatLossScatter() {
     for (var i = 0; i < heatDataArray.length; i++) {
         var timestamp = heatDataArray[i][0];
         var heatValue = heatDataArray[i][1] / 24.0; // convert from kWh to kW
-
         // Get corresponding temperatures using the timestamp
         var outsideTValue = outsideTMap.get(timestamp);
         var insideTValue;
@@ -149,9 +148,9 @@ function plotHeatLossScatter() {
             // Add the point [deltaT, heatValue] to our scatter data array
             // Only include days with positive heat output and reasonable deltaT
             if (heatValue > 0 && deltaT > minDeltaT) { // only plot data above min deltaT
-                 scatterData.push([deltaT, heatValue]);
-                 xValues.push(deltaT);
-                 yValues.push(heatValue);
+                scatterData.push([deltaT, heatValue, timestamp]);
+                xValues.push(deltaT);
+                yValues.push(heatValue);
                 if (deltaT < minX) minX = deltaT;
                 if (deltaT > maxX) maxX = deltaT;
             }
@@ -178,8 +177,8 @@ function plotHeatLossScatter() {
 
     // --- Calculate Linear Regression ---
     var regressionResult = linearRegression(xValues, yValues);
-    var regressionLineData = null;
-    var regressionLabel = "";
+    let regressionLineData = []; // Initialize outside the if block to ensure it's always defined
+    let regressionLabel = "Fit: N/A"; // Default label
 
     if (regressionResult) {
         console.log("Heat Loss Plot: Regression successful", regressionResult);
@@ -187,21 +186,86 @@ function plotHeatLossScatter() {
         const intercept = regressionResult.intercept;
         const r2 = regressionResult.r2;
 
-        const xIntercept = -intercept / slope; // x-intercept (where line crosses x-axis)
-        // Calculate y-values for the line at min and max observed x values
-        const y1 = slope * xIntercept + intercept;
-        const y2 = slope * maxX + intercept;
+        // Define the maximum X value for the line endpoint
+        const maxX = 35; // Or get this dynamically if needed
 
-        regressionLineData = [[xIntercept, y1], [maxX, y2]];
+        // Check for non-zero slope to avoid division by zero
+        if (Math.abs(slope) > 1e-9) { // Use a small tolerance for floating point comparison
+            const xIntercept = -intercept / slope; // x-intercept (where line crosses x-axis)
 
-        // Create a label for the legend
-        regressionLabel = `Fit: HLC=${slope.toFixed(3)*1000} W/K` +
-                            `, Int=${intercept.toFixed(3)*1000} W` +
-                            ` (R²=${r2.toFixed(3)})`; // Heat Loss Coefficient (slope) in W/K
+            // --- Generate points from xIntercept to maxX with integer steps ---
+
+            // 1. Collect all desired unique x-values using a Set
+            const xValuesSet = new Set();
+
+            // Add the start and end points
+            xValuesSet.add(xIntercept);
+            xValuesSet.add(maxX);
+
+            // Determine the integer range to add
+            // Ensure we handle cases where xIntercept might be > maxX or vice-versa
+            const startX = Math.min(xIntercept, maxX);
+            const endX = Math.max(xIntercept, maxX);
+            const firstInteger = Math.ceil(startX);
+            const lastInteger = Math.floor(endX);
+
+            // Add all integers within the calculated range [firstInteger, lastInteger]
+            // These integers must also be between the original xIntercept and maxX bounds
+            for (let xInt = firstInteger; xInt <= lastInteger; xInt++) {
+                 // Ensure the integer point is actually within the desired line segment bounds
+                 if (xInt >= Math.min(xIntercept, maxX) && xInt <= Math.max(xIntercept, maxX)) {
+                    xValuesSet.add(xInt);
+                 }
+            }
+
+            // 2. Convert Set to an array and sort numerically
+            const sortedXValues = Array.from(xValuesSet).sort((a, b) => a - b);
+
+            // 3. Calculate y for each x and create the final data array
+            regressionLineData = sortedXValues.map(x => {
+                const y = slope * x + intercept;
+                return [x, y];
+            });
+
+            // --- End of point generation ---
+
+            // Create a label for the legend
+            regressionLabel = `Fit: HLC=${(slope * 1000).toFixed(1)} W/K` +
+                                `, Int=${(intercept * 1000).toFixed(1)} W` +
+                                ` (R²=${r2.toFixed(3)})`; // Heat Loss Coefficient (slope) in W/K
+
+        } else {
+            // Handle horizontal line (slope is effectively zero)
+            console.warn("Heat Loss Plot: Slope is near zero. Cannot calculate x-intercept. Drawing horizontal line.");
+            // Decide the range for the horizontal line. Maybe 0 to maxX? Or min/max observed X?
+            // Let's draw from 0 to maxX for this example.
+            const minXForLine = 0;
+            const maxXForLine = maxX; // Use the same maxX
+
+             // Generate points similar to above, but y is constant (intercept)
+            const xValuesSet = new Set();
+            xValuesSet.add(minXForLine);
+            xValuesSet.add(maxXForLine);
+            const firstInteger = Math.ceil(minXForLine);
+            const lastInteger = Math.floor(maxXForLine);
+             for (let xInt = firstInteger; xInt <= lastInteger; xInt++) {
+                 xValuesSet.add(xInt);
+            }
+            const sortedXValues = Array.from(xValuesSet).sort((a, b) => a - b);
+            regressionLineData = sortedXValues.map(x => [x, intercept]); // Y is always the intercept
+
+            regressionLabel = `Fit: HLC=0.000 W/K` + // Slope is 0
+                              `, Int=${(intercept * 1000).toFixed(3)} W` +
+                              ` (R²=${r2.toFixed(3)})`;
+        }
 
     } else {
         console.warn("Heat Loss Plot: Linear regression could not be calculated.");
+        // Ensure regressionLineData is empty and label indicates failure
+        regressionLineData = [];
+        regressionLabel = "Fit: N/A";
     }
+
 
     // --- 2. Plotting ---
 
@@ -215,7 +279,7 @@ function plotHeatLossScatter() {
         },
         lines: { show: false }, // Ensure lines are off for scatter
         color: 'rgb(255, 99, 71)', // Tomato color
-        label: 'Daily Heat Loss (' + bargraph_mode + (shouldUseFixedRoomT ? ', Fixed T_in=' + fixedRoomTValue + '°C' : '') + ')' // Add note to label if fixed T is used
+        label: 'Daily Heat Demand (' + bargraph_mode + (shouldUseFixedRoomT ? ', Fixed T_in=' + fixedRoomTValue + '°C' : '') + ')' // Add note to label if fixed T is used
     }];
 
     if (regressionLineData) {
@@ -265,18 +329,74 @@ function plotHeatLossScatter() {
         tooltip: {
             show: true,
             content: function(label, xval, yval, flotItem) {
-                // Custom tooltip content to handle multiple series
-                if (flotItem.series.points.show) { // Scatter points
-                   return `<b>Point:</b><br><b>ΔT:</b> ${xval.toFixed(1)} °C<br><b>Avg Heat:</b> ${yval.toFixed(2)} kW`;
+                // flotItem contains:
+                // - xval, yval: The coordinates of the hovered point (deltaT, heatValue)
+                // - flotItem.series: The series object this point belongs to
+                // - flotItem.series.data: The original data array for this series (our scatterData)
+                // - flotItem.dataIndex: The index of the hovered point within flotItem.series.data
+
+                if (flotItem.series.points.show) { // Check if it's our scatter series
+                    var index = flotItem.dataIndex;
+                    var seriesData = flotItem.series.data; // This should be our scatterData array
+
+                    // --- DEBUGGING ---
+                    // console.log("Hover Index:", index);
+                    // console.log("Series Data Length:", seriesData ? seriesData.length : 'N/A');
+                    // if (seriesData && index < seriesData.length) {
+                    //    console.log("Original Data Point at Index:", seriesData[index]);
+                    // } else {
+                    //    console.log("Cannot access seriesData at index", index);
+                    // }
+                    // --- END DEBUGGING ---
+
+                    // Check if index and data are valid
+                    if (index !== null && seriesData && index >= 0 && index < seriesData.length) {
+                        var originalPoint = seriesData[index]; // Get the original [deltaT, heatValue, timestamp] array
+
+                        // Check if the original point has the expected structure (at least 3 elements)
+                        if (originalPoint && originalPoint.length >= 3) {
+                            var timestamp = originalPoint[2]; // Get the timestamp from the 3rd element
+
+                            // Make sure we actually got a number
+                            if (timestamp === null || timestamp === undefined || isNaN(timestamp)) {
+                                console.error("Tooltip - Invalid timestamp value found at index", index, ":", timestamp);
+                                var dateString = "Error (Invalid Timestamp)";
+                            } else {
+                                // Create Date object directly from the millisecond timestamp
+                                var dateObject = new Date(timestamp); // Assuming timestamp is in ms
+
+                                // Check if the date object is valid
+                                if (isNaN(dateObject.getTime())) {
+                                    console.error("Tooltip - 'Invalid Date' created from timestamp:", timestamp, "at index", index);
+                                    dateString = "Error (Invalid Date)";
+                                } else {
+                                    // Format the valid date
+                                    dateString = dateObject.toLocaleDateString();
+                                }
+                            }
+                             return `<b>Date: ${dateString}</b><br>` +
+                                   `<b>ΔT:</b> ${xval.toFixed(1)} °C<br>` +
+                                   `<b>Avg Heat:</b> ${yval.toFixed(2)} kW`;
+
+                        } else {
+                             console.error("Tooltip - Original data point at index", index, "does not have 3 elements:", originalPoint);
+                             return `<b>Date: Error (Data Format)</b><br>` +
+                                    `<b>ΔT:</b> ${xval.toFixed(1)} °C<br>` +
+                                    `<b>Avg Heat:</b> ${yval.toFixed(2)} kW`;
+                        }
+                    } else {
+                         console.error("Tooltip - Could not retrieve original data point for index:", index);
+                         return `<b>Date: Error (Index)</b><br>` +
+                                `<b>ΔT:</b> ${xval.toFixed(1)} °C<br>` +
+                                `<b>Avg Heat:</b> ${yval.toFixed(2)} kW`;
+                    }
+
                 } else if (flotItem.series.lines.show) { // Regression line
-                    // Tooltip for the line itself is less useful, maybe show equation?
-                    // Or just disable tooltip for the line by returning false?
-                    return `<b>${flotItem.series.label}</b><br>ΔT: ${xval.toFixed(1)} °C<br>Predicted Heat: ${yval.toFixed(2)} kW`;
-                    // return false; // To disable tooltip for the line
+                    // Tooltip for the line remains the same
+                    return `ΔT: ${xval.toFixed(1)} °C<br>Predicted Heat: ${yval.toFixed(2)} kW`;
                 }
                 return ''; // Default fallback
             },
-            // content: "<b>ΔT:</b> %x.1 °C<br><b>Avg Heat:</b> %y.2 kW", // Original simple tooltip
             shifts: { x: 10, y: 20 },
             defaultTheme: false,
             lines: false // Tooltip based on nearest item, not line interpolation
