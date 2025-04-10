@@ -1,7 +1,11 @@
 <?php
 
 $schema['myheatpump_daily_stats'] = array(
-    
+    //When adding new columns, they need to be created in the DB as well
+    //mysql -h localhost -u emoncms -p emoncms
+    //enter pw
+    //ALTER TABLE myheatpump_daily_stats ADD COLUMN column_name FLOAT NULL;
+
     // App ID (On heatpumpmonitor.org this is the system ID)
     'id' => array('type' => 'int(11)'),
     
@@ -23,7 +27,8 @@ $schema['myheatpump_daily_stats'] = array(
     'combined_cooling_kwh' => array('type' => 'float', 'name'=>'Cooling energy', 'group'=>'Stats: Combined', 'dp'=>0, 'unit'=>'kWh'),
     'combined_starts' => array('type' => 'float', 'name'=>'Starts', 'group'=>'Stats: Combined', 'dp'=>0, 'unit'=>''),
     'combined_starts_per_hour' => array('type' => 'float', 'name'=>'Starts per hour', 'group'=>'Stats: Combined', 'dp'=>2, 'unit'=>''),
-    
+    'solar_irradiation_mean' => array('type' => 'float', 'name'=>'Solar Irradiation Mean', 'group'=>'Stats: Combined', 'dp'=>1, 'unit'=>'W/m²'),
+
     // When Running
     'running_elec_kwh' => array('type' => 'float', 'name'=>'Electricity consumption', 'group'=>'Stats: When Running', 'dp'=>0, 'unit'=>'kWh'),
     'running_heat_kwh' => array('type' => 'float', 'name'=>'Heat output', 'group'=>'Stats: When Running', 'dp'=>0, 'unit'=>'kWh'),
