@@ -321,6 +321,10 @@ class MyHeatPump {
             $row["weighted_cycle_count"] = $stats['stats']['weighted']['cycle_count'];
         }
 
+        // solar irradiation
+        if (isset($stats['stats']['combined']['solar_irradiation_mean'])) {
+            $row['solar_irradiation_mean'] = $stats['stats']['combined']['solar_irradiation_mean'];
+        }
         return $row;
     }
 
