@@ -210,6 +210,8 @@ function get_heatpump_stats($feed,$app,$start,$end,$starting_power,$timezone = '
         $cop_stats[$category]["returnT_mean"] = $stats[$category]["returnT"]["mean"];
         $cop_stats[$category]["outsideT_mean"] = $stats[$category]["outsideT"]["mean"];
         $cop_stats[$category]["roomT_mean"] = $stats[$category]["roomT"]["mean"]; 
+        $cop_stats[$category]["solar_irradiation_mean"] = $stats[$category]["solar_irradiation"]["mean"];
+
     }
     
     $ideal_carnot_heat_mean = carnot_simulator($data, $starting_power);
