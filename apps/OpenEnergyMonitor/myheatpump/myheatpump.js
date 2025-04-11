@@ -47,6 +47,10 @@ config.app = {
     "auto_detect_cooling":{"type":"checkbox", "default":false, "name": "Auto detect cooling", "description":"Auto detect summer cooling if cooling status feed is not present"},
     "enable_process_daily":{"type":"checkbox", "default":false, "name": "Enable daily pre-processor", "description":"Enable split between water and space heating in daily view"},
     "start_date": { "type": "value", "default": 0, "name": "Start date", "description": _("Start date for all time values (unix timestamp)") },
+    
+    // solar
+    "solar_elec_kwh": { "type": "feed", "autoname": "solar_elec_kwh", "description": "Cumulative solar energy kWh" },
+
 };
 config.feeds = feed.list();
 
@@ -661,6 +665,65 @@ $("#heatloss_fixed_roomT_value").on('input change', function() {
     // Only replot if the panel is visible AND the checkbox is checked
     if ($("#heatloss-block").is(":visible") && $("#heatloss_fixed_roomT_check").is(":checked")) {
          plotHeatLossScatter();
+    }
+});
+
+// 4. Split Data Checkbox Change Event
+$("#heatloss_split_data_check").on('change', function() {
+    var isChecked = $(this).is(":checked");
+    var $radioButtons = $('input[name="heatloss_split_by"]');
+    var $regressionCheck = $("#heatloss_split_regression_check");
+
+    // Enable/disable radio buttons
+    $radioButtons.prop('disabled', !isChecked);
+    // Enable/disable the regression checkbox
+    $regressionCheck.prop('disabled', !isChecked);
+
+    // If main checkbox is unchecked, also uncheck radios and regression checkbox
+    if (!isChecked) {
+        $radioButtons.prop('checked', false);
+        $regressionCheck.prop('checked', false);
+    }
+    // Optional: If checking, and nothing is selected, select a default (e.g., year)
+    else if (isChecked && $radioButtons.filter(':checked').length === 0) {
+         $('#heatloss_split_by_year').prop('checked', true);
+         // Note: Manually setting 'checked' won't trigger its 'change' event here.
+         // If the plot needs to update immediately based on the default selection,
+         // you might need to explicitly call plotHeatLossScatter() here too,
+         // or trigger the change event: $('#heatloss_split_by_year').trigger('change');
+    }
+
+    // Replot if the panel is visible
+    if ($("#heatloss-block").is(":visible")) {
+        // Assuming plotHeatLossScatter is defined elsewhere
+        plotHeatLossScatter();
+    }
+});
+
+// 5. Split Data Radio Button Change Event
+$('input[name="heatloss_split_by"]').on('change', function() {
+    // Only replot if the panel is visible AND the main split checkbox is checked
+    if ($("#heatloss-block").is(":visible") && $("#heatloss_split_data_check").is(":checked")) {
+         // Assuming plotHeatLossScatter is defined elsewhere
+         plotHeatLossScatter();
+    }
+});
+
+// 6. Split Regression Checkbox Change Event
+$("#heatloss_split_regression_check").on('change', function() {
+     // Only replot if the panel is visible AND the main split checkbox is checked
+     if ($("#heatloss-block").is(":visible") && $("#heatloss_split_data_check").is(":checked")) {
+         // Assuming plotHeatLossScatter is defined elsewhere
+         plotHeatLossScatter();
+     }
+});
+
+
+// 7. Solar Gain Coloring Change event
+$("#heatloss_solar_gain_color").on('change', function() {
+    // Only replot if the panel is visible
+    if ($("#heatloss-block").is(":visible")) {
+        plotHeatLossScatter(); // Call the main plotting function
     }
 });
 
