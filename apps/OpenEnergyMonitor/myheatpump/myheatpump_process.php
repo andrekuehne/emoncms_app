@@ -191,6 +191,15 @@ function get_heatpump_stats($feed,$app,$start,$end,$starting_power,$timezone = '
         }
     }
 
+    // Add Logging Point 1: Check Raw Data Load
+    error_log("[MYHEATPUMP_DEBUG] get_heatpump_stats - Processing day starting: $start");
+    if (isset($data["solar_irradiation"]) && is_array($data["solar_irradiation"])) {
+        error_log("[MYHEATPUMP_DEBUG] Raw solar_irradiation data loaded. Count: " . count($data["solar_irradiation"]) . ". First 20 points: " . print_r(array_slice($data["solar_irradiation"], 0, 20), true));
+    } else {
+        error_log("[MYHEATPUMP_DEBUG] solar_irradiation data NOT loaded or not an array. Configured Feed ID: " . ($app->config->solar_irradiation ?? 'Not Set'));
+    }
+    // End Logging Point 1
+
     $errors = process_error_data($data, $interval, $starting_power);
 
     if ($data["heatpump_cooling"]==false && isset($app->config->auto_detect_cooling) && $app->config->auto_detect_cooling) {
@@ -213,6 +222,10 @@ function get_heatpump_stats($feed,$app,$start,$end,$starting_power,$timezone = '
         $cop_stats[$category]["solar_irradiation_mean"] = $stats[$category]["solar_irradiation"]["mean"];
 
     }
+
+      // Add Logging Point 3: Check Post-Merge Structure
+      error_log("[MYHEATPUMP_DEBUG] get_heatpump_stats - After Merge - Checking cop_stats['combined']['solar_irradiation_mean']: " . (isset($cop_stats['combined']["solar_irradiation_mean"]) ? $cop_stats['combined']["solar_irradiation_mean"] : 'NOT SET'));
+      // End Logging Point 3
     
     $ideal_carnot_heat_mean = carnot_simulator($data, $starting_power);
     
@@ -273,7 +286,7 @@ function get_heatpump_stats($feed,$app,$start,$end,$starting_power,$timezone = '
       "errors" => $errors,
       "immersion_kwh" => $immersion_kwh
     ];
-    
+    error_log("[MYHEATPUMP_DEBUG] get_heatpump_stats - Final check before return - \$result['stats']['combined']['solar_irradiation_mean']: " . (isset($result['stats']['combined']['solar_irradiation_mean']) ? $result['stats']['combined']['solar_irradiation_mean'] : 'NOT SET'));
     return $result;
 }
 
@@ -392,6 +405,13 @@ function process_stats($data, $interval, $starting_power) {
             }
             */
         }
+        // Add Logging Point 2: Check Calculated Mean
+        if (isset($stats[$x]['solar_irradiation'])) { // Check if the structure exists
+            error_log("[MYHEATPUMP_DEBUG] process_stats - Category: $x - Calculated solar_irradiation mean: " . print_r($stats[$x]['solar_irradiation']['mean'] ?? 'NULL', true) . " | Count: " . print_r($stats[$x]['solar_irradiation']['count'] ?? 'N/A', true));
+       } else {
+            error_log("[MYHEATPUMP_DEBUG] process_stats - Category: $x - solar_irradiation structure not found in stats.");
+       }
+       // End Logging Point 2
     }
     
     foreach ($stats as $x => $val) {

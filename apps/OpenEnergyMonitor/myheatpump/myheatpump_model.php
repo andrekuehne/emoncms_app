@@ -265,6 +265,18 @@ class MyHeatPump {
      */
     public function format_flat_keys($stats) {
 
+        // Add Logging Point 4: Check Received Structure
+        $timestamp_for_log = $stats['start'] ?? 'UnknownTimestamp';
+        error_log("[MYHEATPUMP_DEBUG] format_flat_keys - Received stats structure for timestamp " . $timestamp_for_log);
+        if (isset($stats['stats']['combined']['solar_irradiation_mean'])) {
+             error_log("[MYHEATPUMP_DEBUG] format_flat_keys - SUCCESS: Found \$stats['stats']['combined']['solar_irradiation_mean']: " . $stats['stats']['combined']['solar_irradiation_mean']);
+        } else {
+             error_log("[MYHEATPUMP_DEBUG] format_flat_keys - FAILED: Did NOT find \$stats['stats']['combined']['solar_irradiation_mean']. Keys in \$stats['stats']['combined']: " . implode(', ', array_keys($stats['stats']['combined'] ?? [])));
+             // Log the entire combined structure if missing, for more context
+             error_log("[MYHEATPUMP_DEBUG] format_flat_keys - Full \$stats['stats']['combined'] structure: " . print_r($stats['stats']['combined'] ?? 'Not Set', true));
+        }
+        // End Logging Point 4
+
         $categories = ["combined","running","space","water","cooling"];
         
         $row = array();
@@ -372,6 +384,13 @@ class MyHeatPump {
         // Delete existing stats
         $this->mysqli->query("DELETE FROM myheatpump_daily_stats WHERE `id`='$id' AND `timestamp`='$timestamp'");
 
+        // Add Logging Point 5: Check Array Before Save
+        error_log("[MYHEATPUMP_DEBUG] save_day - Final \$row array for timestamp $timestamp before save_stats_table: " . print_r($row, true));
+        if (!isset($row['solar_irradiation_mean'])) {
+            error_log("[MYHEATPUMP_DEBUG] save_day - WARNING: solar_irradiation_mean key is MISSING in \$row before saving!");
+        }
+        // End Logging Point 5
+        
         // Insert new
         $this->save_stats_table('myheatpump_daily_stats', $row);
 
