@@ -13,6 +13,7 @@ const plotColors = [
     '#D2691E', // Chocolate
     '#FF7F50', // Coral
 ];
+
 let colorIndex = 0;
 
 function getNextPlotColor() {
@@ -24,6 +25,106 @@ function resetPlotColorIndex() {
     colorIndex = 0;
 }
 
+// Viridis colormap (64 colors)
+const viridisColorMap = [
+    '#440154',
+    '#45065a',
+    '#460c5f',
+    '#471265',
+    '#47186a',
+    '#481d6f',
+    '#482273',
+    '#472777',
+    '#472c7b',
+    '#46317e',
+    '#453681',
+    '#433b83',
+    '#424085',
+    '#404487',
+    '#3e4989',
+    '#3c4d8a',
+    '#3a538b',
+    '#38578c',
+    '#365b8c',
+    '#345f8d',
+    '#32638d',
+    '#30678d',
+    '#2e6b8e',
+    '#2d6f8e',
+    '#2b738e',
+    '#2a778e',
+    '#287a8e',
+    '#277e8e',
+    '#25828e',
+    '#24868d',
+    '#22898d',
+    '#218d8c',
+    '#1f928c',
+    '#1f968b',
+    '#1e998a',
+    '#1e9d88',
+    '#1fa187',
+    '#20a585',
+    '#23a883',
+    '#26ac81',
+    '#2ab07e',
+    '#2fb37b',
+    '#35b778',
+    '#3bba75',
+    '#42be71',
+    '#49c16d',
+    '#51c468',
+    '#59c764',
+    '#64cb5d',
+    '#6dce58',
+    '#77d052',
+    '#81d34c',
+    '#8bd546',
+    '#95d73f',
+    '#9fd938',
+    '#aadb32',
+    '#b5dd2b',
+    '#bfdf24',
+    '#cae01e',
+    '#d4e11a',
+    '#dfe318',
+    '#e9e419',
+    '#f3e51e',
+    '#fde724'
+];
+
+/**
+ * Maps a value to a color in a given colormap array.
+ * Handles null/NaN values by returning grey.
+ * Clamps values outside the min/max range to the ends of the colormap.
+ * @param {number|null} value - The value to map.
+ * @param {number} minValue - The minimum value of the range.
+ * @param {number} maxValue - The maximum value of the range.
+ * @param {string[]} colorMapArray - Array of hex color strings.
+ * @returns {string} A hex color string from the map or grey for invalid input.
+ */
+function getColorFromMap(value, minValue, maxValue, colorMapArray) {
+    if (value === null || typeof value !== 'number' || isNaN(value)) {
+        return '#cccccc'; // Light grey for null/invalid/missing values
+    }
+    // Handle edge case where min == max
+    if (minValue === maxValue) {
+        // Return middle color or grey if only one color exists
+        return colorMapArray[Math.floor(colorMapArray.length / 2)] || '#cccccc';
+    }
+    // Clamp the value to the range
+    const clampedValue = Math.max(minValue, Math.min(maxValue, value));
+
+    // Calculate the ratio and index
+    const ratio = (clampedValue - minValue) / (maxValue - minValue);
+    // Ensure index stays within bounds [0, length - 1]
+    const index = Math.max(0, Math.min(colorMapArray.length - 1, Math.floor(ratio * colorMapArray.length)));
+    // Handle the case where value equals maxValue exactly, should map to the last color
+    const finalIndex = (ratio === 1.0) ? colorMapArray.length - 1 : index;
+
+
+    return colorMapArray[finalIndex];
+}
 
 /**
  * Reads and validates inputs from the Heat Loss plot settings UI.
@@ -69,13 +170,19 @@ function getHeatLossInputs() {
             config.splitDataEnabled = false; // Disable if no dimension selected
         }
     }
+
+    // split regression by year/season?
     config.splitRegressionEnabled = config.splitDataEnabled && $("#heatloss_split_regression_check").is(":checked"); // Regression split only possible if data is split
+
+
+    // Color by solar gain?
+    config.solarColoringEnabled = $("#heatloss_solar_gain_color").is(":checked");
 
     // Keys for accessing data
     config.heatKey = config.bargraph_mode + "_heat_kwh";
     config.insideTKey = "combined_roomT_mean";
     config.outsideTKey = "combined_outsideT_mean";
-
+    config.solarEKey = "combined_solar_kwh";
     console.log("Heat Loss Inputs:", config);
     return config;
 }
@@ -150,6 +257,20 @@ function prepareHeatLossPlotData(config, daily_data) {
     const insideTMap = (!config.shouldUseFixedRoomT && daily_data[config.insideTKey]) ? new Map(daily_data[config.insideTKey]) : null;
     const heatDataArray = daily_data[config.heatKey];
 
+    // --- START: Fetch and Map Solar Data ---
+    const solarDataArray = daily_data[config.solarEKey];
+    let solarDataMap = null;
+    let solarDataAvailable = false;
+    if (solarDataArray && solarDataArray.length > 0) {
+        solarDataMap = new Map(solarDataArray);
+        solarDataAvailable = true;
+        console.log("Heat Loss Plot: Solar data found and mapped for key:", config.solarEKey);
+    } else {
+        console.log("Heat Loss Plot: Solar data not found or empty for key:", config.solarEKey);
+        // Continue without solar data, coloring will default later if enabled
+    }
+    // --- END: Fetch and Map Solar Data ---
+
     console.log("Heat Loss Plot: Processing", heatDataArray.length, "days of data for mode", config.bargraph_mode);
 
     // --- Data Grouping Logic ---
@@ -173,6 +294,17 @@ function prepareHeatLossPlotData(config, daily_data) {
         } else {
             insideTValue = null; // Should not happen if sufficiency check passed
         }
+        
+        // --- START: Get Solar Value ---
+        let solarValue = null; // Default to null if not available or not found
+        if (solarDataAvailable && solarDataMap.has(timestamp)) {
+            const rawSolarValue = solarDataMap.get(timestamp);
+            // Ensure it's a valid number, otherwise keep it null
+            if (rawSolarValue !== null && typeof rawSolarValue === 'number' && !isNaN(rawSolarValue)) {
+                solarValue = rawSolarValue;
+            }
+        }
+        // --- END: Get Solar Value ---
 
         // Check validity
         if (heatValue !== null && typeof heatValue === 'number' && !isNaN(heatValue) &&
@@ -215,7 +347,7 @@ function prepareHeatLossPlotData(config, daily_data) {
                         groupColor = getNextPlotColor();
                     }
                      groupedData[groupKey] = {
-                         data: [],       // Holds [deltaT, heatValue, timestamp]
+                         data: [],       // Holds [deltaT, heatValue, timestamp, solarValue]
                          xValues: [],    // Holds deltaT
                          yValues: [],    // Holds heatValue (kW)
                          label: groupLabel,
@@ -224,7 +356,7 @@ function prepareHeatLossPlotData(config, daily_data) {
                 }
 
                 // --- Add data to the group ---
-                groupedData[groupKey].data.push([deltaT, heatValue, timestamp]);
+                groupedData[groupKey].data.push([deltaT, heatValue, timestamp, solarValue]);
                 groupedData[groupKey].xValues.push(deltaT);
                 groupedData[groupKey].yValues.push(heatValue);
 
@@ -254,7 +386,8 @@ function prepareHeatLossPlotData(config, daily_data) {
         groups: sortedGroupedData,
         overallMinX: overallMinX,
         overallMaxX: overallMaxX,
-        totalPoints: totalPoints
+        totalPoints: totalPoints,
+        solarDataAvailable: solarDataAvailable
     };
 }
 
@@ -414,94 +547,104 @@ function calculateRegressionSeries(xValues, yValues, labelPrefix, color, minPlot
 
 /**
  * Configures the options for the Flot plot.
- * @param {boolean} splitDataEnabled - Whether data splitting is active (affects legend).
+ * @param {boolean} splitOrSolarActive - Whether data splitting OR solar coloring is active (affects legend/tooltip).
  * @param {object[]} plotSeries - The array of series to be plotted (used for tooltip logic).
+ * @param {boolean} solarColoringActive - Specifically whether solar coloring is active.
  * @returns {object} The Flot options object.
  */
-function getHeatLossPlotOptions(splitDataEnabled, plotSeries) {
-     // Find the first scatter series to access its original data structure for the tooltip
-    const scatterSeriesExample = plotSeries.find(s => s.points && s.points.show);
-    const originalDataAccessor = scatterSeriesExample ? scatterSeriesExample.originalDataAccessor : 'data'; // How to get original [x,y,ts]
+function getHeatLossPlotOptions(splitOrSolarActive, plotSeries, solarColoringActive) { // Added solarColoringActive
+    // Find the first scatter series to access its original data structure for the tooltip
+   const scatterSeriesExample = plotSeries.find(s => s.points && s.points.show);
+   const originalDataAccessor = scatterSeriesExample ? scatterSeriesExample.originalDataAccessor : 'data';
 
-    return {
-        xaxis: {
-            min: 0,
-            axisLabel: "Temperature Difference (T_inside - T_outside) [K or °C]",
-            axisLabelUseCanvas: true,
-            axisLabelFontSizePixels: 12,
-            axisLabelFontFamily: 'Verdana, Arial, Helvetica, Tahoma, sans-serif',
-            axisLabelPadding: 5,
-            font: { size: flot_font_size, color: "#555" },
-            // max: 35 // Optional: set a fixed max if desired
-        },
-        yaxis: {
-            min: 0,
-            axisLabel: "Average Heat Output [kW]",
-            axisLabelUseCanvas: true,
-            axisLabelFontSizePixels: 12,
-            axisLabelFontFamily: 'Verdana, Arial, Helvetica, Tahoma, sans-serif',
-            axisLabelPadding: 5,
-            font: { size: flot_font_size, color: "#555" },
-        },
-        grid: {
-            show: true,
-            color: "#aaa",
-            hoverable: true,
-            clickable: false,
-            borderWidth: { top: 0, right: 0, bottom: 1, left: 1 },
-            borderColor: "#ccc",
-        },
-        tooltip: {
-            show: true,
-             content: function(label, xval, yval, flotItem) {
-                 // flotItem.seriesIndex: index in the plotSeries array
-                 // flotItem.dataIndex: index within the data of that series
-                 const currentSeries = plotSeries[flotItem.seriesIndex];
+   return {
+       // ... (xaxis, yaxis, grid options remain the same) ...
+       grid: {
+          //...
+          borderColor: "#ccc",
+          // --- START: Add background color for better contrast with colors ---
+          backgroundColor: "#f9f9f9" // Light background for the plot area
+          // --- END: Add background color ---
+       },
+       tooltip: {
+           show: true,
+            content: function(label, xval, yval, flotItem) {
+                const currentSeries = plotSeries[flotItem.seriesIndex];
 
-                 if (currentSeries.points && currentSeries.points.show) { // Scatter point
-                    const originalDataArray = currentSeries[originalDataAccessor]; // Access the original data store
-                    const index = flotItem.dataIndex;
+                if (currentSeries.points && currentSeries.points.show) { // Scatter point
+                   // Check if originalData exists and has the expected structure
+                   if (!currentSeries[originalDataAccessor] || !Array.isArray(currentSeries[originalDataAccessor])) {
+                        return "Tooltip Error: Original data not found.";
+                   }
+                   const originalDataArray = currentSeries[originalDataAccessor];
+                   const index = flotItem.dataIndex;
 
-                    if (index !== null && originalDataArray && index >= 0 && index < originalDataArray.length) {
-                        const originalPoint = originalDataArray[index]; // [deltaT, heatValue, timestamp]
-                        if (originalPoint && originalPoint.length >= 3) {
-                            const timestamp = originalPoint[2];
-                            let dateString = "N/A";
-                            if (timestamp !== null && !isNaN(timestamp)) {
-                                const dateObject = new Date(timestamp);
-                                if (!isNaN(dateObject.getTime())) {
-                                     dateString = dateObject.toLocaleDateString();
-                                } else { dateString = "Invalid Date"; }
-                            } else { dateString = "Invalid Timestamp"; }
+                   if (index !== null && index >= 0 && index < originalDataArray.length) {
+                       const originalPoint = originalDataArray[index]; // Expected: [deltaT, heatValue, timestamp, solarValue] or [deltaT, heatValue, timestamp]
 
-                            // Include series label if splitting is enabled
-                            const seriesLabelInfo = splitDataEnabled ? `<b>${currentSeries.label || 'Data'}</b><br>` : '';
+                       // --- START: Tooltip modification for Solar ---
+                       let solarInfo = "";
+                       if (originalPoint && originalPoint.length >= 4 && originalPoint[3] !== null) {
+                           // Check if solarValue exists and is not null
+                           const solarValue = originalPoint[3];
+                            if (typeof solarValue === 'number' && !isNaN(solarValue)) {
+                                solarInfo = `<b>Solar Gain:</b> ${solarValue.toFixed(2)} kWh<br>`;
+                            } else {
+                                solarInfo = `<b>Solar Gain:</b> N/A<br>`;
+                            }
+                       } else if (solarColoringActive) {
+                            // If solar coloring is on but value is missing/null for this point
+                            solarInfo = `<b>Solar Gain:</b> N/A<br>`;
+                       }
 
-                            return `${seriesLabelInfo}` +
-                                   `<b>Date: ${dateString}</b><br>` +
-                                   `<b>ΔT:</b> ${xval.toFixed(1)} °C<br>` +
-                                   `<b>Avg Heat:</b> ${yval.toFixed(2)} kW`;
-                        } else { return "Data Format Error"; }
-                    } else { return "Data Index Error"; }
-                } else if (currentSeries.lines && currentSeries.lines.show) { // Regression line
-                    return `<b>${currentSeries.label || 'Fit'}</b><br>` + // Show regression label
-                           `ΔT: ${xval.toFixed(1)} °C<br>` +
-                           `Predicted Heat: ${yval.toFixed(2)} kW`;
-                }
-                 return ''; // Fallback
-             },
-            shifts: { x: 10, y: 20 },
-            defaultTheme: false,
-            lines: false
-        },
-        legend: {
-            show: true,
-            position: "nw", // North-West corner
-            // Optional: more space if many legend items
-            // labelBoxBorderColor: "none",
-            // container: $("#heatloss-legend-container") // Define an external container if needed
-        }
-    };
+                       // Date Formatting (handle potential null timestamp)
+                       let dateString = "N/A";
+                       const timestamp = (originalPoint && originalPoint.length >=3) ? originalPoint[2] : null;
+                       if (timestamp !== null && !isNaN(timestamp)) {
+                            const dateObject = new Date(timestamp);
+                            if (!isNaN(dateObject.getTime())) {
+                                dateString = dateObject.toLocaleDateString();
+                            } else { dateString = "Invalid Date"; }
+                       } else { dateString = "No Timestamp"; }
+
+                       // Series Label (only if splitting, NOT if only solar coloring)
+                       // Display label if splitting is on AND solar coloring is off
+                       const displaySeriesLabel = config.splitDataEnabled && !solarColoringActive;
+                       const seriesLabelInfo = displaySeriesLabel ? `<b>${currentSeries.label || 'Data'}</b><br>` : '';
+                       // --- END: Tooltip modification for Solar ---
+
+                       return `${seriesLabelInfo}` + // Show group label only if splitting without solar coloring
+                              `<b>Date: ${dateString}</b><br>` +
+                              `<b>ΔT:</b> ${xval.toFixed(1)} °C<br>` +
+                              `<b>Avg Heat:</b> ${yval.toFixed(2)} kW<br>` +
+                              `${solarInfo}`; // Add solar info string
+
+                   } else { return "Tooltip Error: Data Index out of bounds."; }
+               } else if (currentSeries.lines && currentSeries.lines.show) { // Regression line
+                   // ... (existing regression line tooltip logic) ...
+                    return `<b>${currentSeries.label || 'Fit'}</b><br>` +
+                          `ΔT: ${xval.toFixed(1)} °C<br>` +
+                          `Predicted Heat: ${yval.toFixed(2)} kW`;
+               }
+                return ''; // Fallback
+            },
+           shifts: { x: 10, y: 20 },
+           defaultTheme: false,
+           lines: false
+       },
+       legend: {
+           show: true, // Keep legend for regression lines / group info if not solar coloring
+           position: "nw",
+           // Optional: Modify legend if solar coloring is active?
+           // Could potentially hide the scatter series label if useSolarColoring is true
+           // labelFormatter: function(label, series) {
+           //     if (solarColoringActive && series.points && series.points.show) {
+           //         return null; // Hide scatter label when solar coloring
+           //     }
+           //     return label;
+           // }
+       }
+   };
 }
 
 
@@ -538,79 +681,175 @@ function plotHeatLossScatter() {
         return;
     }
 
+    const solarDataAvailable = preparedData.solarDataAvailable; // Get availability info
     // 4. Generate Plot Series (Scatter + Regression)
-    const plotSeries = [];
     const allXValues = []; // For overall regression if needed
     const allYValues = []; // For overall regression if needed
 
-    // Create Scatter Series
-    for (const groupKey in preparedData.groups) {
-        const group = preparedData.groups[groupKey];
-        if (group.data.length > 0) {
-             // Store original data separately for tooltip access if needed, Flot modifies the data array sometimes
-             const originalDataForTooltip = [...group.data];
-
-            plotSeries.push({
-                 // Use only x,y for plotting, keep original data separately
-                 data: group.data.map(p => [p[0], p[1]]),
-                 originalDataAccessor: 'originalData', // Custom property name
-                 originalData: originalDataForTooltip, // Attach original data here
-                 points: { show: true, radius: 3, fill: true, fillColor: hexToRgba(group.color, 0.6) },
+        // --- START: Modified Series Generation Logic ---
+        const plotSeries = [];
+        const useSolarColoring = config.solarColoringEnabled && solarDataAvailable;
+    
+        if (useSolarColoring) {
+            console.log("Heat Loss Plot: Solar coloring enabled and data available.");
+            // --- Solar Coloring Path ---
+    
+            // 1. Combine all points and calculate global solar min/max
+            let allPointsData = []; // Holds [deltaT, heatValue, timestamp, solarValue]
+            let allSolarValues = [];
+            for (const groupKey in preparedData.groups) {
+                preparedData.groups[groupKey].data.forEach(point => {
+                    allPointsData.push(point); // Keep all info for potential tooltip use
+                    if (point[3] !== null && typeof point[3] === 'number' && !isNaN(point[3])) {
+                        allSolarValues.push(point[3]);
+                    }
+                });
+            }
+    
+            let minSolar = 0;
+            let maxSolar = 0;
+            if (allSolarValues.length > 0) {
+                 minSolar = Math.min(...allSolarValues);
+                 maxSolar = Math.max(...allSolarValues);
+            } else {
+                 // Handle case with no valid solar values - disable solar coloring effectively
+                 useSolarColoring = false; // Revert to default coloring if no values found
+                 console.warn("Heat Loss Plot: Solar coloring enabled, but no valid solar values found in data. Reverting to default colors.");
+                 // Jump to the 'else' block logic? No, easier to just let the code below handle it.
+            }
+            console.log(`Heat Loss Plot: Solar range Min=${minSolar.toFixed(2)}, Max=${maxSolar.toFixed(2)} kWh`);
+    
+    
+            // 2. Create ONE scatter series object for all points
+            const scatterSeries = {
+                 // Data needs to be just [x, y] for Flot plotting
+                 data: allPointsData.map(p => [p[0], p[1]]),
+                 // Store original data separately for tooltip access
+                 originalDataAccessor: 'originalData',
+                 originalData: allPointsData, // Store [deltaT, heatValue, timestamp, solarValue]
+                 label: `Daily Heat Demand (${config.bargraph_mode}, colored by Solar Gain)`, // Generic label
+                 points: {
+                     show: true,
+                     radius: 3,
+                     fill: true,
+                     // We will handle fillColor using the symbol function
+                     fillColor: '#cccccc', // Default/fallback fill
+                     symbol: function(ctx, x, y, radius, shadow, series, pointIndex) {
+                         // Get the original point data using the index
+                         const originalPoint = series.originalData[pointIndex];
+                         const solarValue = originalPoint[3]; // Get solar value
+    
+                         // Determine the color based on the solar value
+                         const pointColor = useSolarColoring // Check again in case it was disabled above
+                                          ? getColorFromMap(solarValue, minSolar, maxSolar, viridisColorMap)
+                                          : '#cccccc'; // Fallback color if something went wrong
+    
+                         // Set the fill style for this specific point
+                         ctx.fillStyle = hexToRgba(pointColor, 0.7); // Use helper for alpha
+                         // Default circle symbol drawing logic (from Flot source or simplified)
+                         ctx.beginPath();
+                         ctx.arc(x, y, radius, 0, shadow ? Math.PI : Math.PI * 2, false);
+                         ctx.fill();
+                         // Optional: Add border?
+                         // ctx.strokeStyle = pointColor; // Or a fixed border color
+                         // ctx.lineWidth = 1;
+                         // ctx.stroke();
+                     }
+                 },
                  lines: { show: false },
-                 color: group.color,
-                 label: group.label + ` (N=${group.data.length})`,
-                 groupKey: groupKey // Store group key if needed later
-            });
-
-            // Collect all points for overall regression if needed
-            if (!config.splitRegressionEnabled) {
-                allXValues.push(...group.xValues);
-                allYValues.push(...group.yValues);
+                 // We don't set a single 'color' for the series when coloring points individually
+                 color: false // Explicitly set to false or omit
+            };
+            plotSeries.push(scatterSeries);
+    
+            // 3. Add Regression Lines (if split regression is enabled)
+            // These still respect the splitting groups
+            if (config.splitRegressionEnabled) {
+                console.log("Heat Loss Plot: Adding split regression lines over solar-colored points.");
+                for (const groupKey in preparedData.groups) {
+                    const group = preparedData.groups[groupKey];
+                    const regressionLine = calculateRegressionSeries(
+                        group.xValues,
+                        group.yValues,
+                        `${group.label} Fit`, // Use group label
+                        group.color, // Use original group color for the line
+                        0, 35
+                    );
+                    if (regressionLine) {
+                        plotSeries.push(regressionLine);
+                    }
+                }
+            } else {
+                 // Add single overall regression if not splitting regression
+                 const allX = allPointsData.map(p => p[0]);
+                 const allY = allPointsData.map(p => p[1]);
+                  if (allX.length >= 2) {
+                      const overallRegressionLine = calculateRegressionSeries(
+                          allX, allY, "Overall Fit", 'rgba(0, 0, 255, 0.8)', 0, 35
+                      );
+                      if (overallRegressionLine) {
+                          plotSeries.push(overallRegressionLine);
+                      }
+                  }
             }
-        }
-    }
-
-    // Create Regression Series
-    if (config.splitRegressionEnabled) {
-        // Calculate and add regression for each group
-        for (const groupKey in preparedData.groups) {
-            const group = preparedData.groups[groupKey];
-             const regressionLine = calculateRegressionSeries(
-                group.xValues,
-                group.yValues,
-                `${group.label} Fit`, // Use group label in fit label
-                group.color, // Use same color as scatter
-                0, // Min X for line start
-                35 // Max X for line end (adjust as needed)
-            );
-            if (regressionLine) {
-                plotSeries.push(regressionLine);
-            }
-        }
-    } else {
-        // Calculate and add a single overall regression line
-        if (allXValues.length >= 2) {
-             const overallRegressionLine = calculateRegressionSeries(
-                allXValues,
-                allYValues,
-                "Overall Fit",
-                'rgba(0, 0, 255, 0.8)', // Specific color for overall fit (e.g., blue)
-                 0,
-                 35
-            );
-            if (overallRegressionLine) {
-                plotSeries.push(overallRegressionLine);
-            }
+    
         } else {
-             console.warn("Heat Loss Plot: Not enough data points (>=2) for overall regression.");
+            // --- Default Coloring Path (No Solar Coloring or No Data) ---
+            console.log("Heat Loss Plot: Using default group coloring.");
+            const allXValues = []; // For overall regression
+            const allYValues = [];
+    
+            // Create Scatter Series per group
+            for (const groupKey in preparedData.groups) {
+                const group = preparedData.groups[groupKey];
+                if (group.data.length > 0) {
+                     const originalDataForTooltip = group.data.map(p => [p[0], p[1], p[2]]); // Original structure [deltaT, heatValue, timestamp]
+    
+                    plotSeries.push({
+                         data: group.data.map(p => [p[0], p[1]]), // Just x,y for plotting
+                         originalDataAccessor: 'originalData',
+                         originalData: originalDataForTooltip,
+                         points: { show: true, radius: 3, fill: true, fillColor: hexToRgba(group.color, 0.6) },
+                         lines: { show: false },
+                         color: group.color,
+                         label: group.label + ` (N=${group.data.length})`,
+                         groupKey: groupKey
+                    });
+    
+                    if (!config.splitRegressionEnabled) {
+                        allXValues.push(...group.xValues);
+                        allYValues.push(...group.yValues);
+                    }
+                }
+            }
+    
+            // Create Regression Series (per group or overall)
+            if (config.splitRegressionEnabled) {
+                for (const groupKey in preparedData.groups) {
+                     const group = preparedData.groups[groupKey];
+                     const regressionLine = calculateRegressionSeries(
+                         group.xValues, group.yValues, `${group.label} Fit`, group.color, 0, 35
+                     );
+                     if (regressionLine) plotSeries.push(regressionLine);
+                }
+            } else {
+                 if (allXValues.length >= 2) {
+                     const overallRegressionLine = calculateRegressionSeries(
+                         allXValues, allYValues, "Overall Fit", 'rgba(0, 0, 255, 0.8)', 0, 35
+                     );
+                     if (overallRegressionLine) plotSeries.push(overallRegressionLine);
+                 } else {
+                      console.warn("Heat Loss Plot: Not enough data points (>=2) for overall regression.");
+                 }
+            }
         }
-    }
+        // --- END: Modified Series Generation Logic ---
 
 
     // 5. Get Plot Options
-    const plotOptions = getHeatLossPlotOptions(config.splitDataEnabled, plotSeries);
+    const plotOptions = getHeatLossPlotOptions(config.splitDataEnabled || useSolarColoring, plotSeries, useSolarColoring); // Indicate if solar coloring is active
 
-    // 6. Plotting
+    // 6. Plotting (Remains largely the same)
     var plotWidth = plotBound.width();
     var plotHeight = plotBound.height();
     if (plotHeight < 300) plotHeight = 400; // Min height
@@ -622,6 +861,11 @@ function plotHeatLossScatter() {
         plotDiv.empty(); // Clear previous content
         $.plot(plotDiv, plotSeries, plotOptions);
         console.log("Heat Loss Plot: Plot generated successfully.");
+         // Optional: Add color bar legend here if useSolarColoring is true (complex)
+         if (useSolarColoring) {
+              // drawColorBar(plotDiv, minSolar, maxSolar, viridisColorMap); // Placeholder for a future function
+         }
+
     } catch (e) {
         console.error("Heat Loss Plot: Error during flot plotting:", e);
         plotDiv.html("<p style='text-align:center; padding-top:50px; color:red;'>Error generating plot.</p>");
