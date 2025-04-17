@@ -47,6 +47,10 @@ config.app = {
     "auto_detect_cooling":{"type":"checkbox", "default":false, "name": "Auto detect cooling", "description":"Auto detect summer cooling if cooling status feed is not present"},
     "enable_process_daily":{"type":"checkbox", "default":false, "name": "Enable daily pre-processor", "description":"Enable split between water and space heating in daily view"},
     "start_date": { "type": "value", "default": 0, "name": "Start date", "description": _("Start date for all time values (unix timestamp)") },
+    
+    // solar
+    "solar_elec_kwh": { "type": "feed", "autoname": "solar_elec_kwh", "optional": true, "description": "Cumulative solar energy kWh" },
+
 };
 config.feeds = feed.list();
 
@@ -714,6 +718,30 @@ $("#heatloss_split_regression_check").on('change', function() {
      }
 });
 
+
+// 7. Solar Gain Coloring Change event
+$("#heatloss_solar_gain_color").on('change', function() {
+    // Only replot if the panel is visible
+    if ($("#heatloss-block").is(":visible")) {
+        plotHeatLossScatter(); // Call the main plotting function
+    }
+});
+
+// 8. Minimum Quality Input Change
+$("#heatloss_min_quality").on('input change', function() {
+    // Only replot if the panel is actually visible
+    if ($("#heatloss-block").is(":visible")) {
+        plotHeatLossScatter(); // Call the plotting function (defined in heatloss.js)
+    }
+});
+
+// 8. Minimum Heat Input Change
+$("#heatloss_min_heat").on('input change', function() {
+    // Only replot if the panel is actually visible
+    if ($("#heatloss-block").is(":visible")) {
+        plotHeatLossScatter(); // Call the plotting function (defined in heatloss.js)
+    }
+});
 // --- End Heat Loss Control Event Listeners ---
 
 $("#show_dhw_temp").click(function () {

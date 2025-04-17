@@ -241,6 +241,29 @@ function get_heatpump_stats($feed,$app,$start,$end,$starting_power,$timezone = '
         $heat_kwh = get_cumulative_kwh($feed,$app->config->heatpump_heat_kwh,$start,$end);
     }
     
+    $solar_kwh = null; // Initialize solar kWh variable
+
+    // Check if the property is set, IS NUMERIC, and greater than 0
+    // simple check as for $heat_kwh fails if disabled
+    if (isset($app->config->solar_elec_kwh) &&
+        is_numeric($app->config->solar_elec_kwh) && 
+        $app->config->solar_elec_kwh > 0)
+    {
+        // Now we are sure it's a numeric ID > 0
+        $feed_id = (int) $app->config->solar_elec_kwh; // Cast to int for safety
+
+        $solar_kwh = get_cumulative_kwh($feed, $feed_id, $start, $end);
+
+        // It's good practice to also check if get_cumulative_kwh succeeded
+        if ($solar_kwh !== null && $solar_kwh !== false) {
+             $solar_kwh = number_format($solar_kwh, 4, '.', '') * 1; // Format like the others
+        } else {
+             $solar_kwh = null; // Ensure it's null if get_cumulative_kwh failed
+        }
+    }
+    // Assign the result (which will be null if the check failed or solar wasn't configured)
+    $cop_stats["combined"]["solar_kwh"] = $solar_kwh;
+
     $cop = null;
     if ($elec_kwh>0) {
         $cop = $heat_kwh / $elec_kwh;
@@ -461,7 +484,9 @@ function get_quality($data) {
     $count = count($data);
     if ($count<1) return 0;
 
-    if (!isset($data[0])) return 0;
+    # If only the first point is missing, this returns a total quality of 0
+    # this is wrong
+    # if (!isset($data[0])) return 0;
     
     $null_count = 0;
     for ($pos = 0; $pos < $count; $pos++) {

@@ -446,8 +446,8 @@ global $path, $session, $v;
         <div id="heatloss-block" style="background-color:#fff; padding:10px; display:none;">
           <!-- Content for the Heat Loss panel goes here -->
           <!-- Placeholder for the plot -->
-          <div id="heatloss-plot-bound" style="width:100%; height:400px; overflow:hidden; position:relative; border:1px dashed #ccc; margin-bottom:10px;">
-              <div id="heatloss-plot" style="height:400px;">Plot Placeholder</div>
+          <div id="heatloss-plot-bound" style="width:100%; height:600px; overflow:hidden; position:relative; border:1px dashed #ccc; margin-bottom:10px;">
+              <div id="heatloss-plot" style="height:600px;"></div>
           </div>
 
           <!-- Placeholder for controls -->
@@ -502,7 +502,34 @@ global $path, $session, $v;
                 </span>
             </div>
             <!-- End of Control Group 3 -->
-    
+
+            <!-- START: New Control Group 4: Solar power coloring -->
+            <div class="input-prepend input-append" style="margin-top:5px;">
+                <span class="add-on" style="height: 30px; box-sizing: border-box; vertical-align: middle;"> <!-- Adjust height if needed -->
+                    <input type="checkbox" id="heatloss_solar_gain_color" style="margin:0 5px 0 0; vertical-align: middle;">Color by solar gain
+                </span>
+            </div>
+            <!-- END: New Control Group 4 -->    
+
+            <!-- Control Group 5: Filter Controls -->
+            <div class="input-append" style="margin-top:5px;">
+                <input type="number" id="heatloss_min_quality" class="heatloss-control-input" value="95" step="1" style="width:50px; text-align:center;">
+                <span class="add-on">Minimum Quality %</span>
+            </div>
+            <div class="input-append" style="margin-top:5px;">
+                <input type="number" id="heatloss_min_heat" class="heatloss-control-input" value="0" step="1" style="width:50px; text-align:center;">
+                <span class="add-on">Minimum Heat kWh</span>
+            </div>
+      
+            <!-- START: Multilinear Regression Results Text Box -->
+            <div style="margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px;">
+                <label for="heatloss-mlr-results" style="font-weight: bold; display: block; margin-bottom: 5px;">Multilinear Regression Results (Heat ~ ΔT + Solar):</label>
+                <textarea id="heatloss-mlr-results" readonly
+                          style="width: 100%; height: 220px; font-family: monospace, Consolas, 'Courier New'; font-size: 11px; /* Slightly smaller fixed-width font */ background-color: #f8f8f8; border: 1px solid #ccc; padding: 8px; box-sizing: border-box; white-space: pre-wrap; /* Preserve whitespace AND wrap lines */ line-height: 1.3; overflow-y: auto; /* Ensure vertical scroll is available if needed */"
+                          placeholder="Multilinear regression results will appear here if solar data is available and sufficient data points exist..."
+                ></textarea>
+            </div>
+            <!-- END: Multilinear Regression Results Text Box -->
 
     
           </div> <!-- End of #heatloss-controls -->
@@ -553,7 +580,10 @@ global $path, $session, $v;
   config.db = <?php echo json_encode($config); ?>;
 </script>
 
-<?php $v=196; ?>
+<?php $v=203; ?>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jstat/1.9.6/jstat.js" integrity="sha512-MN0us5YWgC/39SjILvwt7/54yevWDlXVmzhVEfxGfnLGdyEoGisHb4ycAnk4BrT+47w8qj2LMjRr4bNeGZfYNA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/14.2.1/math.js" integrity="sha512-ZOpEWF/zdnWKFpyY0TMzmZGkhjM9Z4RkW/GMF9X9NtZ6bhDqzAlWfk7NwqHPD+WriepCt3Th6+4jl4w4wkQolA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdn.plot.ly/plotly-3.0.1.min.js" charset="utf-8"></script>
 <script type="text/javascript" src="<?php echo $path; ?>Modules/app/apps/OpenEnergyMonitor/myheatpump/myheatpump_regression.js?v=<?php echo $v; ?>"></script>
 <script type="text/javascript" src="<?php echo $path; ?>Modules/app/apps/OpenEnergyMonitor/myheatpump/myheatpump_process.js?v=<?php echo $v; ?>"></script>
 <script type="text/javascript" src="<?php echo $path; ?>Modules/app/apps/OpenEnergyMonitor/myheatpump/myheatpump_powergraph.js?v=<?php echo $v; ?>"></script>
