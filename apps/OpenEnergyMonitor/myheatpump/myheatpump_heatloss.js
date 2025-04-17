@@ -899,7 +899,9 @@ function performMultilinearRegressionTest(deltaTValues, solarValues, heatOutputV
     // Call the multilinear regression function
     let regressionResult = null;
     try {
-        regressionResult = multilinearRegression(independentVars, filteredHeat);
+        regressionResult = multilinearRegression(independentVars, filteredHeat)
+        let regressionResultLU = multilinearRegressionStable(independentVars, filteredHeat);
+        compareRegressionResults(regressionResult, regressionResultLU, 'Direct', 'LU');;
     } catch (e) {
         console.error("Multilinear Test: Error calling multilinearRegression function:", e);
         const msg = `Multilinear Test: Error during calculation: ${e.message || e}\nSee console for details.`;
