@@ -74,11 +74,27 @@ function getHeatLossInputs() {
      // Color by solar gain?
     config.solarColoringEnabled = $("#heatloss_solar_gain_color").is(":checked");
 
+    // filtering parameters
+    config.minQuality = parseFloat($("#heatloss_min_quality").val());
+    if (isNaN(config.minQuality)) {
+        console.warn("Heat Loss Plot: Invalid Minimum Quality input, using no minimum.");
+        config.minQuality = 0;
+    }
+
+    config.minHeat = parseFloat($("#heatloss_min_heat").val());
+    if (isNaN(config.minHeat)) {
+        console.warn("Heat Loss Plot: Invalid Minimum Heat input, using no minimum.");
+        config.minHeat = 0;
+    }
+
     // Keys for accessing data
     config.heatKey = config.bargraph_mode + "_heat_kwh";
     config.insideTKey = "combined_roomT_mean";
     config.outsideTKey = "combined_outsideT_mean";
     config.solarEKey = "combined_solar_kwh";
+    config.quality_heatKey = "quality_heat";
+    config.quality_insideTKey = "quality_roomT";
+    config.quality_outsideTKey = "quality_outsideT";
 
     console.log("Heat Loss Inputs:", config);
     return config;
@@ -156,7 +172,8 @@ function prepareHeatLossPlotData(config, daily_data) {
     const outsideTMap = new Map(daily_data[config.outsideTKey]);
     const insideTMap = (!config.shouldUseFixedRoomT && daily_data[config.insideTKey]) ? new Map(daily_data[config.insideTKey]) : null;
     const heatDataArray = daily_data[config.heatKey];
-    
+    const qualityHeatDataArray = daily_data[config.quality_heatKey];
+
     // --- START: Fetch and Map Solar Data ---
     const solarDataArray = daily_data[config.solarEKey];
     let solarDataMap = null;
@@ -183,7 +200,7 @@ function prepareHeatLossPlotData(config, daily_data) {
     for (let i = 0; i < heatDataArray.length; i++) {
         const timestamp = heatDataArray[i][0]; // Assuming timestamp is in milliseconds
         const heatValue = heatDataArray[i][1] / 24.0; // kWh to kW
-
+        const qualityValue = qualityHeatDataArray[i][1];
         const outsideTValue = outsideTMap.get(timestamp);
         let insideTValue;
 
@@ -209,7 +226,8 @@ function prepareHeatLossPlotData(config, daily_data) {
         // Check validity
         if (heatValue !== null && typeof heatValue === 'number' && !isNaN(heatValue) &&
             insideTValue !== null && typeof insideTValue === 'number' && !isNaN(insideTValue) &&
-            outsideTValue !== null && typeof outsideTValue === 'number' && !isNaN(outsideTValue))
+            outsideTValue !== null && typeof outsideTValue === 'number' && !isNaN(outsideTValue) &&
+            qualityValue >= config.minQuality && heatValue >= config.minHeat / 24.0)
         {
             const deltaT = insideTValue - outsideTValue;
 
@@ -760,12 +778,118 @@ function performMultilinearRegressionTest(deltaTValues, solarValues, heatOutputV
     const filterMsg = `Multilinear Test: Filtered data points from ${n_initial} to ${n_filtered} (removing points with missing heat, deltaT, or solar).`;
     console.log(filterMsg); // Log filtering info
 
+          
+    // --- START: Simple Linear Regression (Heat ~ DeltaT) ---
+    let slrOutputString = "--- Simple Linear Regression Fit Details ---\n";
+    let slrSummarySentence = "";
+    if (n_filtered >= 2) { // Need at least 2 points for SLR inference (>= p=2 parameters)
+        try {
+            // Use multilinearRegression function with only DeltaT as independent variable
+            const slrIndependentVars = [filteredDeltaT];
+            const slrResult = multilinearRegression(slrIndependentVars, filteredHeat);
+
+            if (slrResult && slrResult.beta && slrResult.beta.length === 2) { // Check for intercept (β₀ -> α₀) and slope (β₁ -> α₁)
+                const intercept_slr = slrResult.beta[0];
+                const slope_slr = slrResult.beta[1]; // This is the HLC in kW/K
+                const hasCI_slr = slrResult.confidenceIntervals && slrResult.confidenceIntervals.length === 2;
+
+                // --- Build SLR Summary Sentence ---
+                // Helper to format estimate with CI range or just point estimate (adapted for SLR)
+                const formatSlrTerm = (estimateKW, ciKW, unit = "W", precision = 0) => {
+                    const factor = unit === "W" ? 1000 : 1;
+                    if (hasCI_slr && ciKW && ciKW.length === 2 && !isNaN(ciKW[0]) && !isNaN(ciKW[1])) {
+                        const lower = (ciKW[0] * factor).toFixed(precision);
+                        const upper = (ciKW[1] * factor).toFixed(precision);
+                        const minVal = Math.min(lower, upper);
+                        const maxVal = Math.max(lower, upper);
+                        return `between ${minVal} and ${maxVal} ${unit}`;
+                    } else if (!isNaN(estimateKW)) {
+                        return `around ${(estimateKW * factor).toFixed(precision)} ${unit}`;
+                    } else {
+                        return `N/A`;
+                    }
+                };
+
+                const hlcTerm = formatSlrTerm(slope_slr, hasCI_slr ? slrResult.confidenceIntervals[1] : null);
+                const baselineTerm = formatSlrTerm(intercept_slr, hasCI_slr ? slrResult.confidenceIntervals[0] : null);
+
+                slrSummarySentence = `Interpretation (SLR): For every 1°C increase in ΔT, heat demand increases by ${hlcTerm}. The model estimates a baseline heat load (at ΔT=0) of ${baselineTerm}.`;
+                slrSummarySentence += `\n(R-squared: ${slrResult.r2.toFixed(3)} - See full stats below.)`;
+                // --- End SLR Summary Sentence ---
+
+
+                // --- Build Detailed SLR String ---
+                slrOutputString += `Model: Heat_kW = α₀ + α₁*DeltaT\n`;
+                slrOutputString += `N = ${slrResult.n}, Parameters (p) = ${slrResult.p}, DF = ${slrResult.degreesOfFreedom}\n`;
+                slrOutputString += `R-squared: ${slrResult.r2.toFixed(4)}\n`;
+                slrOutputString += `SSE: ${slrResult.sse.toFixed(4)}\n`;
+
+                const paramNamesSLR = ['Intercept (α₀)', 'DeltaT (α₁)'];
+                const header1 = `    ${'Parameter'.padEnd(18)} ${'Estimate'.padStart(12)} ${'Std. Error'.padStart(12)} ${'t-statistic'.padStart(12)} ${'p-value'.padStart(12)} ${'95% CI'.padStart(25)}`;
+                const header2 = `    ${'-'.repeat(18)} ${'-'.repeat(12)} ${'-'.repeat(12)} ${'-'.repeat(12)} ${'-'.repeat(12)} ${'-'.repeat(25)}`;
+
+                slrOutputString += "\nParameter Estimates:\n";
+                slrOutputString += header1 + "\n";
+                slrOutputString += header2 + "\n";
+
+                // Check if full inference stats are available
+                if (slrResult.standardErrors && slrResult.tStats && slrResult.pValues && slrResult.confidenceIntervals) {
+                    slrResult.beta.forEach((coeff, i) => {
+                        const name = paramNamesSLR[i];
+                        const estimateStr = coeff.toFixed(4).padStart(12);
+                        const seStr = slrResult.standardErrors[i].toFixed(4).padStart(12);
+                        const tStatStr = slrResult.tStats[i].toFixed(3).padStart(12);
+                        let pValStr = "N/A";
+                        if (slrResult.pValues[i] !== null && !isNaN(slrResult.pValues[i])) {
+                            pValStr = slrResult.pValues[i] < 0.001 ? "<0.001" : slrResult.pValues[i].toFixed(3);
+                        }
+                        pValStr = pValStr.padStart(12);
+
+                        const ci = slrResult.confidenceIntervals[i];
+                        const ciStr = (ci && ci.length === 2 && !isNaN(ci[0]) && !isNaN(ci[1]))
+                                    ? `[${ci[0].toFixed(4)}, ${ci[1].toFixed(4)}]`.padStart(25)
+                                    : '[N/A]'.padStart(25);
+
+                        const line = `    ${name.padEnd(18)} ${estimateStr} ${seStr} ${tStatStr} ${pValStr} ${ciStr}`;
+                        slrOutputString += line + "\n";
+                    });
+                } else {
+                    // Fallback if full stats weren't calculated by multilinearRegression
+                    slrOutputString += "    (Full inference statistics not available for SLR)\n";
+                    slrOutputString += `    Intercept (α₀): ${intercept_slr.toFixed(4)}\n`;
+                    slrOutputString += `    DeltaT (α₁):    ${slope_slr.toFixed(4)}\n`; // HLC
+                }
+                slrOutputString += "------------------------------------------------------------------------------------------"; // Footer line
+
+            } else {
+                slrOutputString += "SLR calculation failed or returned invalid result structure.\n";
+                if (!slrResult) slrOutputString += "(multilinearRegression returned null for SLR)\n";
+                console.warn("SLR failed, result object:", slrResult);
+            }
+        } catch (e) {
+            console.error("SLR Test: Error calling multilinearRegression function for SLR:", e);
+            slrOutputString += `SLR Test: Error during calculation: ${e.message || e}\n`;
+        }
+    } else {
+        slrOutputString += `Not enough valid data points (${n_filtered}) for SLR inference (need > 2).\n`;
+        slrOutputString += "------------------------------------------------------------------------------------------"; // Footer line
+    }
+    // --- END: Simple Linear Regression ---
+
+
+
     // Check if enough data points remain for regression
     const num_independent_vars = 2; // DeltaT, Solar
     const p_params = num_independent_vars + 1; // Number of parameters
     if (n_filtered <= p_params) {
-        const msg = `Multilinear Test: Not enough valid data points (${n_filtered}). Need more than ${p_params} for regression inference. Cannot perform analysis.\n(${filterMsg})`;
-        updateResultsDisplay(msg);
+        const msg = `Multilinear Test: Not enough valid data points (${n_filtered}). Need more than ${p_params} for MLR inference. Cannot perform MLR analysis.\n(${filterMsg})`;
+        console.warn(msg);
+        console.log("SLR Summary (attempted):\n" + slrSummarySentence);
+        console.log("SLR Details (attempted):\n" + slrOutputString);
+         // Display MLR failure message AND the SLR results string
+        if (resultsTextArea) {
+             resultsTextArea.value = msg + "\n\n" + slrSummarySentence + "\n\n" + slrOutputString;
+        }
         return null;
     }
 
@@ -779,7 +903,7 @@ function performMultilinearRegressionTest(deltaTValues, solarValues, heatOutputV
     } catch (e) {
         console.error("Multilinear Test: Error calling multilinearRegression function:", e);
         const msg = `Multilinear Test: Error during calculation: ${e.message || e}\nSee console for details.`;
-        updateResultsDisplay(msg);
+        updateResultsDisplay(slrOutputString + msg);
         return null;
     }
 
@@ -907,16 +1031,29 @@ function performMultilinearRegressionTest(deltaTValues, solarValues, heatOutputV
         // --- END: Build Detailed Output String ---
 
         // Update console with detailed results
-        console.log(detailedOutputString);
+        console.log("MLR Summary:\n" + summarySentence);
+        console.log("MLR Details:\n" + detailedOutputString);
+        console.log("SLR Summary:\n" + slrSummarySentence);
+        console.log("SLR Details:\n" + slrOutputString);
 
-        // Update text area with summary first, then details
+        // Update text area with MLR summary, MLR details, SLR summary, and SLR details
         if (resultsTextArea) {
-            resultsTextArea.value = summarySentence + "\n\n" + detailedOutputString;
+            resultsTextArea.value = summarySentence + "\n\n" + // MLR Summary
+                                  detailedOutputString + "\n\n" + // MLR Details
+                                  slrSummarySentence + "\n\n" + // SLR Summary
+                                  slrOutputString; // SLR Details
         }
 
     } else {
+        // MLR failed, but SLR might have succeeded.
         const msg = "Multilinear Test: Regression calculation failed or returned null.";
-        updateResultsDisplay(msg); // Update text box and console
+        console.warn(msg); // Log MLR failure
+        console.log("SLR Summary (attempted):\n" + slrSummarySentence);
+        console.log("SLR Details (attempted):\n" + slrOutputString);
+        // Display MLR failure message AND the SLR results string (summary + details)
+        if (resultsTextArea) {
+             resultsTextArea.value = msg + "\n\n" + slrSummarySentence + "\n\n" + slrOutputString;
+        }
     }
 
     return regressionResult;
