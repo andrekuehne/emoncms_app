@@ -24,6 +24,9 @@ function resetPlotColorIndex() {
     colorIndex = 0;
 }
 
+// Store data for clipboard export
+var heatLossPlotDataForClipboard = [];
+
 /**
  * Reads and validates inputs from the Heat Loss plot settings UI.
  * (Identical to original - no changes needed here)
@@ -234,7 +237,14 @@ function prepareHeatLossPlotData(config, daily_data) {
             if (heatValue > 0 && deltaT > config.minDeltaT) {
                 let groupKey = "all_data"; // Default if splitting is disabled
                 let groupLabel = 'Daily Heat Demand<br>(' + config.bargraph_mode + (config.shouldUseFixedRoomT ? ', Fixed T_in=' + config.fixedRoomTValue + '°C' : '') + ')';
-                // groupColor removed
+
+                heatLossPlotDataForClipboard.push({
+                    timestamp: timestamp,
+                    insideT: insideTValue,
+                    outsideT: outsideTValue,
+                    heat_kWh: heatValue * 24.0,
+                    solar_kWh: solarValue 
+                });
 
                 // --- Determine Group Key if Splitting ---
                 if (config.splitDataEnabled) {
@@ -472,6 +482,8 @@ function plotHeatLossScatter() {
     console.log("Attempting to plot Heat Loss Scatter using Plotly...");
     const plotDiv = $("#heatloss-plot"); // Get the jQuery object
     const plotElement = plotDiv[0]; // Get the raw DOM element for Plotly
+
+    heatLossPlotDataForClipboard = []; // Clear previous data for clipboard export
 
     if (!plotElement) {
         console.error("Heat Loss Plot: Plot container #heatloss-plot not found.");

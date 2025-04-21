@@ -742,6 +742,90 @@ $("#heatloss_min_heat").on('input change', function() {
         plotHeatLossScatter(); // Call the plotting function (defined in heatloss.js)
     }
 });
+
+// 9. Copy data to clipboard
+$("#copy-heatloss-data-btn").on("click", function() {
+    console.log("Copy Heat Loss Data button clicked.");
+
+    // Check if the data array exists and has data
+    if (typeof heatLossPlotDataForClipboard === 'undefined' || heatLossPlotDataForClipboard.length === 0) {
+        alert("No Heat Loss plot data available to copy. Please ensure the plot is visible and contains data.");
+        console.log("No data found in heatLossPlotDataForClipboard.");
+        return;
+    }
+
+    // 1. Define Header
+    const header = "Date\tT_in\tT_out\tHeat_kWh\tSolar_kWh";
+
+    // 2. Format Data Rows
+    const dataRows = heatLossPlotDataForClipboard.map(point => {
+        // Format Date (YYYY-MM-DD)
+        let dateStr = "Invalid Date";
+        try {
+            if (point.timestamp !== null && !isNaN(point.timestamp)) {
+                const dateObj = new Date(point.timestamp);
+                if (!isNaN(dateObj.getTime())) {
+                    const year = dateObj.getFullYear();
+                    const month = (dateObj.getMonth() + 1).toString().padStart(2, '0'); // Month is 0-indexed
+                    const day = dateObj.getDate().toString().padStart(2, '0');
+                    dateStr = `${year}-${month}-${day}`;
+                }
+            }
+        } catch (e) { console.warn("Error formatting date:", e); }
+
+        // Format Numbers (handle nulls gracefully)
+        const insideTStr = (point.insideT !== null && !isNaN(point.insideT)) ? point.insideT.toFixed(1) : "N/A";
+        const outsideTStr = (point.outsideT !== null && !isNaN(point.outsideT)) ? point.outsideT.toFixed(1) : "N/A";
+        const heatKwhStr = (point.heat_kWh !== null && !isNaN(point.heat_kWh)) ? point.heat_kWh.toFixed(3) : "N/A";
+        const solarKwhStr = (point.solar_kWh !== null && !isNaN(point.solar_kWh)) ? point.solar_kWh.toFixed(3) : "N/A"; // Use 3dp for solar too? Adjust if needed.
+
+        // Join columns with tabs
+        return `${dateStr}\t${insideTStr}\t${outsideTStr}\t${heatKwhStr}\t${solarKwhStr}`;
+    });
+
+    // 3. Combine Header and Rows
+    const clipboardText = header + "\n" + dataRows.join("\n");
+
+    // 4. Copy to Clipboard using Clipboard API (preferred)
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(clipboardText).then(() => {
+            console.log("Heat loss data copied to clipboard successfully.");
+            // Optional: Provide user feedback (e.g., change button text briefly)
+            const originalText = $(this).html();
+            $(this).html('<i class="icon-ok icon-white"></i> Copied!');
+            setTimeout(() => {
+                $(this).html(originalText);
+            }, 2000); // Reset after 2 seconds
+        }).catch(err => {
+            console.error("Failed to copy heat loss data to clipboard:", err);
+            alert("Failed to copy data. See browser console for details.");
+        });
+    } else {
+        // Fallback for older browsers (less reliable, requires user interaction sometimes)
+        console.warn("Clipboard API not fully supported. Using fallback.");
+        try {
+            const textArea = document.createElement("textarea");
+            textArea.value = clipboardText;
+            textArea.style.position = "fixed"; // Prevent scrolling to bottom
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            console.log("Heat loss data copied using fallback.");
+            // Feedback for fallback
+            const originalText = $(this).html();
+            $(this).html('<i class="icon-ok icon-white"></i> Copied!');
+            setTimeout(() => {
+                $(this).html(originalText);
+            }, 2000);
+        } catch (err) {
+            console.error("Fallback copy method failed:", err);
+            alert("Failed to copy data using fallback method.");
+        }
+    }
+});
+
 // --- End Heat Loss Control Event Listeners ---
 
 $("#show_dhw_temp").click(function () {

@@ -530,10 +530,12 @@ global $path, $session, $v;
                 ></textarea>
             </div>
             <!-- END: Multilinear Regression Results Text Box -->
-
+             <!-- START: Add Copy Button Here -->
+            <button id="copy-heatloss-data-btn" class="btn btn-primary" style="margin-top: 15px;">
+                <i class="fa fa-clipboard" aria-hidden="true"></i> Copy Plot Data
+            </button>
+            <!-- END: Add Copy Button Here -->
     
-          </div> <!-- End of #heatloss-controls -->
-
         </div> <!-- End of #heatloss-block -->
 
       </div> <!-- End of col1-inner for Heat Loss -->
